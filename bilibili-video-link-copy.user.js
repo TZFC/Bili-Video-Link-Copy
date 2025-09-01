@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name                 Bilibili Video MP4 Copier
+// @name                 Bilibili Video link Copier
 // @name:zh-CN           Bilibili 视频直链复制按钮
 // @namespace            https://github.com/TZFC
 // @version              0.1
