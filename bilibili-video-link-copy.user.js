@@ -1,12 +1,10 @@
 // ==UserScript==
-// @name                 Bilibili Video link Copier
+// @name                 Bilibili Video MP4 Copier
 // @name:zh-CN           Bilibili 视频直链复制按钮
 // @namespace            https://github.com/TZFC
-// @version              0.1
-// @description          Add a button inside the Bilibili player controls that copies the highest available progressive MP4 URL. Useful for VRChat, custom players, or direct download.
-// @description:zh-CN    在Bilibili播放器工具栏内添加一个“复制MP4直链”按钮。复制的链接可用于VRChat、自定义播放器或直接下载。
-// @downloadURL          https://raw.githubusercontent.com/SirHelper/Bili-Video-Link-Copy/main/bilibili-video-link-copy.user.js
-// @updateURL            https://raw.githubusercontent.com/SirHelper/Bili-Video-Link-Copy/main/bilibili-video-link-copy.user.js
+// @version              0.2
+// @description          Add a button inside the Bilibili player controls that copies the lowest available progressive MP4 URL. Useful for VRChat, custom players, or direct download.
+// @description:zh-CN    在Bilibili播放器工具栏内添加一个“复制MP4直链”按钮。复制最低画质的直链，可用于VRChat、自定义播放器或直接下载。
 // @author               TZFC
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
@@ -15,6 +13,8 @@
 // @grant                GM_setClipboard
 // @grant                GM_xmlhttpRequest
 // @connect              api.bilibili.com
+// @downloadURL          https://update.greasyfork.org/scripts/548007/Bilibili%20Video%20MP4%20Copier.user.js
+// @updateURL            https://update.greasyfork.org/scripts/548007/Bilibili%20Video%20MP4%20Copier.meta.js
 // ==/UserScript==
 
 (function () {
@@ -38,7 +38,7 @@
       button_fetching: "Fetching…",
       button_copied: "Copied ✅",
       button_error: "Error ❌",
-      button_title: "Copy highest MP4 URL for VRChat",
+      button_title: "Copy lowest MP4 URL for VRChat",
       error_extract_bvid: "Could not extract BV identifier.",
       error_bad_json: "Failed to parse JSON.",
       error_no_mp4: "No MP4 found.",
@@ -49,7 +49,7 @@
       button_fetching: "获取中…",
       button_copied: "已复制 ✅",
       button_error: "出错 ❌",
-      button_title: "复制最高画质 MP4 直链（适用于 VRChat）",
+      button_title: "复制最低画质 MP4 直链（适用于 VRChat）",
       error_extract_bvid: "无法提取 BV 号。",
       error_bad_json: "JSON 解析失败。",
       error_no_mp4: "未找到 MP4。",
@@ -128,7 +128,7 @@
     return page_item.cid;
   }
 
-  async function get_best_progressive_mp4(bvid_value, cid_value) {
+  async function get_worst_progressive_mp4(bvid_value, cid_value) {
     const params = new URLSearchParams({
       bvid: String(bvid_value),
       cid: String(cid_value),
@@ -159,7 +159,8 @@
     }
     if (candidate_urls.length === 0) throw new Error(L.error_no_mp4_candidates);
 
-    candidate_urls.sort((a, b) => (b.size || 0) - (a.size || 0));
+    // Choose the smallest-size candidate (worst quality)
+    candidate_urls.sort((a, b) => (a.size || 0) - (b.size || 0));
     return candidate_urls[0].url;
   }
 
@@ -182,7 +183,7 @@
           const bvid_value = extract_bvid();
           const page_number = extract_page_number();
           const cid_value = await get_cid_for_page(bvid_value, page_number);
-          const mp4_url = await get_best_progressive_mp4(bvid_value, cid_value);
+          const mp4_url = await get_worst_progressive_mp4(bvid_value, cid_value);
           copy_text_to_clipboard(mp4_url);
           set_button_state(download_button, L.button_copied, true);
         } catch (error_object) {
