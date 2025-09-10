@@ -2,7 +2,7 @@
 // @name                 Bilibili Video MP4 Copier + Picker (All Qualities, Native Select)
 // @name:zh-CN           Bilibili 视频直链复制与选择（全清晰度，默认样式下拉）
 // @namespace            https://github.com/TZFC
-// @version              0.6
+// @version              0.7
 // @description          Button + dropdown to copy progressive MP4 URLs. Fetches all available qualities by iterating qn. Defaults to lowest quality. Persistent mounting.
 // @description:zh-CN    通过遍历 qn 获取所有可用 MP4 清晰度，默认最低清晰度。支持播放器重绘时自动重新挂载。
 // @author               TZFC
@@ -51,7 +51,17 @@
   // Minimal CSS (native select for readability)
   const style = document.createElement("style");
   style.textContent = `
-    .bili_mp4_tools { display:flex; align-items:center; gap:8px; margin-left:8px; }
+    /* Native select; let the browser render light/dark automatically */
+    .bili_mp4_tools { color-scheme: light dark; }  /* also enables UA theming for children */
+    .bili_mp4_select {
+      font-size: 12px;
+      min-width: 200px;
+      padding: 4px 8px;
+      appearance: auto;
+      -webkit-appearance: auto;
+      -moz-appearance: auto;
+      /* Do NOT set background, color, border, box-shadow, or custom chevrons */
+    }
     .bili_mp4_button {
       cursor:pointer; padding:6px 12px; font-size:12px; line-height:1;
       border:none; border-radius:8px;
@@ -59,7 +69,6 @@
       color:#101010; font-weight:700;
     }
     .bili_mp4_button[disabled]{ opacity:.6; cursor:not-allowed; }
-    .bili_mp4_select { font-size:12px; min-width:200px; padding:4px 8px; }
   `;
   document.documentElement.appendChild(style);
 
