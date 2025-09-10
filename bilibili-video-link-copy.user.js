@@ -6,6 +6,8 @@
 // @description          Copy progressive MP4 URLs from Bilibili with a button and dropdown. Dropdown is readable in system dark mode.
 // @description:zh-CN    在Bilibili播放器中添加按钮和下拉菜单以复制不同清晰度的MP4直链。下拉菜单在系统深色模式下可读。
 // @author               TZFC
+// @downloadURL          https://raw.githubusercontent.com/TZFC/Danmaku-replace/main/bilibili-video-link-copy.user.js
+// @updateURL            https://raw.githubusercontent.com/TZFC/Danmaku-replace/main/bilibili-video-link-copy.user.js
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
 // @license              GPL-3.0
