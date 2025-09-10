@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name                 Bilibili Video MP4 Copier + Picker (Sticky Mount, Auto Dark Mode)
-// @name:zh-CN           Bilibili 视频直链复制与选择（稳固挂载，自动深色模式）
+// @name                 Bilibili Video MP4 Copier + Picker (All Qualities, Native Select)
+// @name:zh-CN           Bilibili 视频直链复制与选择（全清晰度，默认样式下拉）
 // @namespace            https://github.com/TZFC
-// @version              0.5
-// @description          Button + dropdown to copy progressive MP4 URLs. Persistently re-attaches if the player rerenders. Defaults to the lowest quality stream. Respects system dark mode.
-// @description:zh-CN    在播放器内提供按钮与下拉菜单复制 MP4 直链；当播放器重绘时自动重新挂载；默认最低画质；跟随系统深色模式。
+// @version              0.6
+// @description          Button + dropdown to copy progressive MP4 URLs. Fetches all available qualities by iterating qn. Defaults to lowest quality. Persistent mounting.
+// @description:zh-CN    通过遍历 qn 获取所有可用 MP4 清晰度，默认最低清晰度。支持播放器重绘时自动重新挂载。
 // @author               TZFC
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
@@ -13,290 +13,287 @@
 // @grant                GM_setClipboard
 // @grant                GM_xmlhttpRequest
 // @connect              api.bilibili.com
-// @downloadURL          https://update.greasyfork.org/scripts/548007/Bilibili%20Video%20MP4%20Copier.user.js
-// @updateURL            https://update.greasyfork.org/scripts/548007/Bilibili%20Video%20MP4%20Copier.meta.js
 // ==/UserScript==
 
 (function () {
   "use strict";
 
   // Locale
-  function determine_locale() {
-    const languages = (navigator.languages && navigator.languages.length > 0)
-      ? navigator.languages
-      : [navigator.language || "en"];
-    const primary = String(languages[0] || "en").toLowerCase();
-    return primary.startsWith("zh") ? "zh-CN" : "en";
-  }
-  const current_locale = determine_locale();
+  const locale = (()=>{
+    const langs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || "en"];
+    return String(langs[0]||"en").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+  })();
   const L = {
     "en": {
-      button_idle: "Copy MP4",
-      button_fetching: "Fetching…",
-      button_copied: "Copied ✅",
-      button_error: "Error ❌",
-      button_title: "Copy selected MP4 URL (VRChat, players, download)",
-      dropdown_title: "Choose MP4 stream (lowest preselected)",
-      placeholder: "Select stream…",
-      size_unknown: "unknown",
-      error_extract_bvid: "Could not extract BV identifier.",
-      error_bad_json: "Failed to parse JSON.",
-      error_no_mp4: "No MP4 found.",
-      error_no_mp4_candidates: "No MP4 candidates."
+      button_idle:"Copy MP4", button_fetching:"Fetching…", button_copied:"Copied ✅", button_error:"Error ❌",
+      button_title:"Copy selected MP4 URL",
+      dropdown_title:"Choose MP4 stream (lowest preselected)",
+      placeholder:"Select stream…", size_unknown:"unknown",
+      label_unknown:"Unknown",
+      error_extract_bvid:"Could not extract BV identifier.",
+      error_bad_json:"Failed to parse JSON.",
+      error_no_mp4:"No MP4 found.",
+      error_no_mp4_candidates:"No MP4 candidates."
     },
     "zh-CN": {
-      button_idle: "复制 MP4",
-      button_fetching: "获取中…",
-      button_copied: "已复制 ✅",
-      button_error: "出错 ❌",
-      button_title: "复制所选 MP4 直链（VRChat、播放器、下载）",
-      dropdown_title: "选择 MP4 流（默认最低画质）",
-      placeholder: "选择流…",
-      size_unknown: "未知",
-      error_extract_bvid: "无法提取 BV 号。",
-      error_bad_json: "JSON 解析失败。",
-      error_no_mp4: "未找到 MP4。",
-      error_no_mp4_candidates: "没有可用的 MP4。"
+      button_idle:"复制 MP4", button_fetching:"获取中…", button_copied:"已复制 ✅", button_error:"出错 ❌",
+      button_title:"复制所选 MP4 直链",
+      dropdown_title:"选择 MP4 流（默认最低画质）",
+      placeholder:"选择流…", size_unknown:"未知",
+      label_unknown:"未知",
+      error_extract_bvid:"无法提取 BV 号。",
+      error_bad_json:"JSON 解析失败。",
+      error_no_mp4:"未找到 MP4。",
+      error_no_mp4_candidates:"没有可用的 MP4。"
     }
-  }[current_locale];
+  }[locale];
 
-  // Styles (pink–blue palette, auto light/dark, accessible focus)
-  const style_text = `
+  // Minimal CSS (native select for readability)
+  const style = document.createElement("style");
+  style.textContent = `
     .bili_mp4_tools { display:flex; align-items:center; gap:8px; margin-left:8px; }
-
     .bili_mp4_button {
       cursor:pointer; padding:6px 12px; font-size:12px; line-height:1;
       border:none; border-radius:8px;
       background: linear-gradient(135deg, #ff7ac3 0%, #7aa8ff 100%);
-      color:#101010; font-weight:700; box-shadow: 0 2px 8px rgba(0,0,0,.15);
-      transition: transform .08s ease, box-shadow .12s ease, filter .12s ease; user-select:none;
+      color:#101010; font-weight:700;
     }
-    .bili_mp4_button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.2); filter: brightness(1.03); }
-    .bili_mp4_button:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
-    .bili_mp4_button[disabled] { opacity:.6; cursor:not-allowed; }
-    .bili_mp4_button:focus-visible { outline: 2px solid #7aa8ff; outline-offset: 2px; }
-
-    .bili_mp4_select {
-      appearance:none; -webkit-appearance:none; -moz-appearance:none;
-      padding:6px 30px 6px 10px; font-size:12px; line-height:1;
-      border-radius:8px; border:1px solid rgba(0,0,0,.15); color:#111; background:#ffffff;
-      box-shadow: 0 1px 4px rgba(0,0,0,.08) inset; min-width:230px;
-    }
-    .bili_mp4_select:disabled { opacity:.6; cursor:not-allowed; }
-    .bili_mp4_select:focus-visible { outline: 2px solid #ff7ac3; outline-offset: 2px; }
-
-    /* Dark mode overrides */
-    @media (prefers-color-scheme: dark) {
-      .bili_mp4_button {
-        color: #0f0f0f; /* bright gradient stays readable with dark UI; black text provides strong contrast */
-        box-shadow: 0 2px 10px rgba(0,0,0,.35);
-      }
-      .bili_mp4_button:hover { box-shadow: 0 4px 16px rgba(0,0,0,.5); }
-
-      .bili_mp4_select {
-        color:#e9e9e9;
-        background:#16181b;
-        border:1px solid rgba(255,255,255,.18);
-        box-shadow: 0 1px 6px rgba(0,0,0,.6) inset;
-      }
-      .bili_mp4_select:focus-visible { outline-color: #7aa8ff; }
-    }
+    .bili_mp4_button[disabled]{ opacity:.6; cursor:not-allowed; }
+    .bili_mp4_select { font-size:12px; min-width:200px; padding:4px 8px; }
   `;
-  const style_element = document.createElement("style");
-  style_element.textContent = style_text;
-  document.documentElement.appendChild(style_element);
+  document.documentElement.appendChild(style);
 
-  // Utilities
-  function extract_bvid_from_pathname() {
-    const match = location.pathname.match(/\/video\/(BV[0-9A-Za-z]+)/);
-    if (!match) throw new Error(L.error_extract_bvid);
-    return match[1];
-  }
-  function extract_page_number() {
-    const url_object = new URL(location.href);
-    return parseInt(url_object.searchParams.get("p") || "1", 10);
-  }
-  function copy_plain_text_to_clipboard(text) {
-    GM_setClipboard(text, { type: "text", mimetype: "text/plain" });
-  }
-  function http_get_json(url_string) {
-    return new Promise((resolve_function, reject_function) => {
-      GM_xmlhttpRequest({
-        method: "GET",
-        url: url_string,
-        headers: { Referer: "https://www.bilibili.com/" },
-        timeout: 30000,
-        onload: (response_object) => {
-          try { resolve_function(JSON.parse(response_object.responseText)); }
-          catch { reject_function(new Error(L.error_bad_json)); }
-        },
-        onerror: () => reject_function(new Error("Network error: " + url_string)),
-        ontimeout: () => reject_function(new Error("Network timeout: " + url_string))
-      });
+  // Utils
+  const getBV = ()=>{
+    const m = location.pathname.match(/\/video\/(BV[0-9A-Za-z]+)/);
+    if(!m) throw new Error(L.error_extract_bvid);
+    return m[1];
+  };
+  const getPage = ()=> {
+    const u = new URL(location.href);
+    return parseInt(u.searchParams.get("p") || "1", 10);
+  };
+  const clip = (t)=> GM_setClipboard(t, { type:"text", mimetype:"text/plain" });
+  const fmtSize = (bytes)=>{
+    if(!Number.isFinite(bytes) || bytes<=0) return L.size_unknown;
+    const units=["B","KB","MB","GB"]; let i=0, v=bytes;
+    while(v>=1024 && i<units.length-1){ v/=1024; i++; }
+    return `${v.toFixed(v>=100?0:v>=10?1:2)} ${units[i]}`;
+  };
+  const httpGetJson = (url)=> new Promise((res, rej)=>{
+    GM_xmlhttpRequest({
+      method:"GET", url, headers:{ Referer:"https://www.bilibili.com/" }, timeout:30000,
+      onload: r=>{ try{ res(JSON.parse(r.responseText)); }catch{ rej(new Error(L.error_bad_json)); } },
+      onerror: ()=>rej(new Error("Network error: "+url)),
+      ontimeout: ()=>rej(new Error("Network timeout: "+url))
     });
-  }
-  function format_size(bytes_value) {
-    if (!Number.isFinite(bytes_value) || bytes_value <= 0) return L.size_unknown;
-    const units_list = ["B", "KB", "MB", "GB"];
-    let unit_index = 0, value = bytes_value;
-    while (value >= 1024 && unit_index < units_list.length - 1) { value /= 1024; unit_index++; }
-    const decimals = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-    return `${value.toFixed(decimals)} ${units_list[unit_index]}`;
-  }
+  });
 
-  // API
-  const playurl_cache_map = new Map(); // key = `${bvid}:${cid}`
-  async function get_cid_for_page(bvid_value, page_number) {
-    const json_result = await http_get_json(
-      `https://api.bilibili.com/x/player/pagelist?bvid=${encodeURIComponent(bvid_value)}&jsonp=jsonp`
-    );
-    const pages = Array.isArray(json_result?.data) ? json_result.data : [];
-    const page_item = pages.find((item) => item.page === page_number) || pages[0];
-    return page_item && page_item.cid;
-  }
-  async function get_progressive_mp4_list(bvid_value, cid_value) {
-    const cache_key = `${bvid_value}:${cid_value}`;
-    if (playurl_cache_map.has(cache_key)) return playurl_cache_map.get(cache_key);
+  // API helpers
+  const pagelistCache = new Map(); // bvid -> [{page,cid,...}]
+  const playurlCache = new Map();  // `${bvid}:${cid}:qn=${qn}` -> durl list
+
+  const getCidForPage = async (bvid, page)=>{
+    if(!pagelistCache.has(bvid)){
+      const js = await httpGetJson(`https://api.bilibili.com/x/player/pagelist?bvid=${encodeURIComponent(bvid)}&jsonp=jsonp`);
+      pagelistCache.set(bvid, Array.isArray(js?.data) ? js.data : []);
+    }
+    const arr = pagelistCache.get(bvid);
+    const item = arr.find(x=>x.page===page) || arr[0];
+    return item && item.cid;
+  };
+
+  // Fetch playurl for a specific qn (progressive MP4 via fnval=0)
+  const fetchPlayurlForQn = async (bvid, cid, qn)=>{
+    const key = `${bvid}:${cid}:qn=${qn}`;
+    if(playurlCache.has(key)) return playurlCache.get(key);
     const params = new URLSearchParams({
-      bvid: String(bvid_value),
-      cid: String(cid_value),
-      qn: "120",
-      fourk: "1",
-      fnver: "0",
-      fnval: "0", // progressive MP4 (durl)
-      otype: "json",
-      platform: "html5"
+      bvid:String(bvid), cid:String(cid),
+      qn:String(qn), fourk:"1", fnver:"0", fnval:"0", // fnval=0 => progressive (durl)
+      otype:"json", platform:"html5"
     });
-    const api_url = "https://api.bilibili.com/x/player/playurl?" + params.toString();
-    const json_result = await http_get_json(api_url);
-    const durl_array = json_result?.data?.durl;
-    if (!Array.isArray(durl_array) || durl_array.length === 0) throw new Error(L.error_no_mp4);
+    const js = await httpGetJson(`https://api.bilibili.com/x/player/playurl?${params.toString()}`);
+    playurlCache.set(key, js);
+    return js;
+  };
 
-    const collected = [];
-    for (let part_index = 0; part_index < durl_array.length; part_index++) {
-      const entry = durl_array[part_index];
-      if (!entry) continue;
-      const base_size = Number(entry.size || 0);
-      const push_if_mp4 = (candidate, is_backup) => {
-        if (!candidate) return;
-        const lower = String(candidate).toLowerCase();
-        if (lower.includes(".mp4") && !lower.includes(".m4s")) {
-          collected.push({ url: candidate, size: base_size, is_backup: !!is_backup, part_index });
+  // Build the list of all progressive MP4 options across qualities
+  const getAllMp4Options = async (bvid, cid)=>{
+    // First call (any qn) to learn available qualities & labels
+    const baseParams = new URLSearchParams({
+      bvid:String(bvid), cid:String(cid),
+      qn:"120", fourk:"1", fnver:"0", fnval:"0", otype:"json", platform:"html5"
+    });
+    const first = await httpGetJson(`https://api.bilibili.com/x/player/playurl?${baseParams.toString()}`);
+
+    // Prefer support_formats (has new_description/display_desc), else accept_quality
+    const support = Array.isArray(first?.data?.support_formats) ? first.data.support_formats : [];
+    const acceptQ = Array.isArray(first?.data?.accept_quality) ? first.data.accept_quality : [];
+
+    // From highest to lowest (as API usually lists). We want lowest default, so we’ll reverse later.
+    let qualities = support.length
+      ? support.map(s => ({ qn: s.quality, label: s.new_description || s.display_desc || String(s.quality) }))
+      : acceptQ.map(qn => ({ qn, label: String(qn) }));
+
+    // Dedup in case of overlaps, then sort by numeric qn ascending (so lowest first)
+    const seen = new Set();
+    qualities = qualities.filter(q=>{
+      const k = String(q.qn);
+      if(seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }).sort((a,b)=> a.qn - b.qn);
+
+    // For each quality, fetch progressive durl and pick first MP4 URL (primary)
+    const results = [];
+    for(const q of qualities){
+      try{
+        const js = await fetchPlayurlForQn(bvid, cid, q.qn);
+        const durl = js?.data?.durl;
+        if(!Array.isArray(durl) || durl.length===0) continue;
+
+        // Find an entry that’s truly .mp4 (not .m4s)
+        let picked = null;
+        for(const e of durl){
+          if(e?.url && String(e.url).toLowerCase().includes(".mp4") && !String(e.url).toLowerCase().includes(".m4s")){
+            picked = { url: e.url, size: Number(e.size||0) };
+            break;
+          }
+          if(Array.isArray(e?.backup_url)){
+            const b = e.backup_url.find(u => String(u).toLowerCase().includes(".mp4") && !String(u).toLowerCase().includes(".m4s"));
+            if(b){ picked = { url: b, size: Number(e.size||0) }; break; }
+          }
         }
-      };
-      push_if_mp4(entry.url, false);
-      if (Array.isArray(entry.backup_url)) for (const bu of entry.backup_url) push_if_mp4(bu, true);
+        if(picked){
+          results.push({
+            qn: q.qn,
+            label: q.label || L.label_unknown,
+            url: picked.url,
+            size: picked.size
+          });
+        }
+      }catch(e){
+        // Ignore a failing tier; continue others
+        console.debug("qn fetch failed", q.qn, e);
+      }
     }
-    if (collected.length === 0) throw new Error(L.error_no_mp4_candidates);
-    collected.sort((a, b) => (a.size || 0) - (b.size || 0)); // smallest first (lowest quality)
-    playurl_cache_map.set(cache_key, collected);
-    return collected;
-  }
 
-  // UI (persistent wrapper that reattaches)
-  function create_controls() {
-    const wrapper_element = document.createElement("div");
-    wrapper_element.className = "bili_mp4_tools";
-    wrapper_element.dataset.role = "bili_mp4_tools";
-
-    const select_element = document.createElement("select");
-    select_element.className = "bili_mp4_select";
-    select_element.title = L.dropdown_title;
-
-    const placeholder_option = document.createElement("option");
-    placeholder_option.value = "";
-    placeholder_option.disabled = true;
-    placeholder_option.selected = true;
-    placeholder_option.textContent = L.placeholder;
-    select_element.appendChild(placeholder_option);
-
-    const button_element = document.createElement("button");
-    button_element.className = "bili_mp4_button";
-    button_element.title = L.button_title;
-    button_element.textContent = L.button_idle;
-
-    wrapper_element.appendChild(select_element);
-    wrapper_element.appendChild(button_element);
-    return { wrapper_element, select_element, button_element };
-  }
-  function set_button_state(button_element, text, disabled) {
-    button_element.textContent = text;
-    button_element.disabled = !!disabled;
-  }
-  function populate_dropdown(select_element, item_list) {
-    select_element.length = 1; // keep placeholder only
-    for (let i = 0; i < item_list.length; i++) {
-      const item = item_list[i];
-      const option_element = document.createElement("option");
-      const tag_text = item.is_backup ? "backup" : `part${item.part_index + 1}`;
-      option_element.value = item.url;
-      option_element.textContent = `#${i + 1} • ${format_size(item.size)} • ${tag_text}`;
-      select_element.appendChild(option_element);
+    // Fallback: if nothing was found via per-qn calls, try whatever durl came with first response
+    if(results.length===0){
+      const durl = first?.data?.durl;
+      if(Array.isArray(durl)){
+        for(const e of durl){
+          if(e?.url && e.url.toLowerCase().includes(".mp4") && !e.url.toLowerCase().includes(".m4s")){
+            results.push({ qn: first?.data?.quality ?? 0, label: L.label_unknown, url: e.url, size: Number(e.size||0) });
+          }
+        }
+      }
     }
-    if (select_element.options.length > 1) select_element.selectedIndex = 1; // lowest quality by default
-  }
 
-  const controls = create_controls();
-  let controls_loaded = false;
-  async function load_streams_once() {
-    if (controls_loaded) return;
-    controls_loaded = true;
-    set_button_state(controls.button_element, L.button_fetching, true);
-    try {
-      const bvid_value = extract_bvid_from_pathname();
-      const page_number = extract_page_number();
-      const cid_value = await get_cid_for_page(bvid_value, page_number);
-      const list = await get_progressive_mp4_list(bvid_value, cid_value);
-      populate_dropdown(controls.select_element, list);
-      set_button_state(controls.button_element, L.button_idle, false);
-    } catch (error_object) {
-      console.error(error_object);
-      set_button_state(controls.button_element, L.button_error, true);
+    // Sort by size ascending if sizes exist (smaller ~ lower quality), otherwise by qn ascending
+    const haveSize = results.every(r => Number.isFinite(r.size) && r.size>0);
+    results.sort((a,b)=>{
+      return haveSize ? (a.size - b.size) : (a.qn - b.qn);
+    });
+
+    return results;
+  };
+
+  // UI
+  const createControls = ()=>{
+    const wrap = document.createElement("div");
+    wrap.className = "bili_mp4_tools";
+
+    const sel = document.createElement("select");
+    sel.className = "bili_mp4_select";
+    sel.title = L.dropdown_title;
+    const ph = document.createElement("option");
+    ph.value = ""; ph.disabled = true; ph.selected = true; ph.textContent = L.placeholder;
+    sel.appendChild(ph);
+
+    const btn = document.createElement("button");
+    btn.className = "bili_mp4_button";
+    btn.title = L.button_title;
+    btn.textContent = L.button_idle;
+
+    wrap.appendChild(sel);
+    wrap.appendChild(btn);
+    return { wrap, sel, btn };
+  };
+
+  const setBtn = (btn, label, dis)=>{ btn.textContent = label; btn.disabled = !!dis; };
+
+  const populate = (sel, list)=>{
+    sel.length = 1; // keep placeholder
+    for(const it of list){
+      const o = document.createElement("option");
+      // Example label: "360P • 12.3 MB (qn=16)"
+      const sizeTxt = fmtSize(it.size);
+      o.value = it.url;
+      o.textContent = `${it.label} • ${sizeTxt} (qn=${it.qn})`;
+      sel.appendChild(o);
     }
-  }
-  controls.select_element.addEventListener("mousedown", load_streams_once, { passive: true });
-  controls.button_element.addEventListener("mousedown", load_streams_once, { passive: true });
-  controls.button_element.addEventListener("click", async () => {
-    if (!controls_loaded) await load_streams_once();
-    if (!controls.select_element.value) {
-      set_button_state(controls.button_element, L.button_error, true);
-      setTimeout(() => set_button_state(controls.button_element, L.button_idle, false), 1200);
+    if(sel.options.length>1) sel.selectedIndex = 1; // default lowest
+  };
+
+  // Persistent mount
+  const controls = createControls();
+  let loaded = false;
+  const loadOnce = async ()=>{
+    if(loaded) return;
+    loaded = true;
+    setBtn(controls.btn, L.button_fetching, true);
+    try{
+      const bvid = getBV();
+      const page = getPage();
+      const cid = await getCidForPage(bvid, page);
+      const list = await getAllMp4Options(bvid, cid);
+      if(!list || list.length===0) throw new Error(L.error_no_mp4_candidates);
+      populate(controls.sel, list);
+      setBtn(controls.btn, L.button_idle, false);
+    }catch(e){
+      console.error(e);
+      setBtn(controls.btn, L.button_error, true);
+    }
+  };
+  controls.sel.addEventListener("mousedown", loadOnce, { passive:true });
+  controls.btn.addEventListener("mousedown", loadOnce, { passive:true });
+  controls.btn.addEventListener("click", async ()=>{
+    if(!loaded) await loadOnce();
+    if(!controls.sel.value){
+      setBtn(controls.btn, L.button_error, true);
+      setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
       return;
     }
-    try {
-      copy_plain_text_to_clipboard(controls.select_element.value);
-      set_button_state(controls.button_element, L.button_copied, true);
-    } catch (error_object) {
-      console.error(error_object);
-      set_button_state(controls.button_element, L.button_error, true);
+    try{
+      clip(controls.sel.value);
+      setBtn(controls.btn, L.button_copied, true);
+    }catch(e){
+      console.error(e);
+      setBtn(controls.btn, L.button_error, true);
     }
-    setTimeout(() => set_button_state(controls.button_element, L.button_idle, false), 1200);
-  }, { passive: true });
+    setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
+  }, { passive:true });
 
-  // Robust, persistent mounting
-  function find_target_container() {
+  function findTarget(){
     return document.querySelector("#bilibili-player .bpx-player-primary-area .bpx-player-sending-area");
   }
-  function mount_controls_if_needed() {
-    const target_container = find_target_container();
-    if (!target_container) return;
-    const in_document = document.contains(controls.wrapper_element);
-    const parent_is_target = controls.wrapper_element.parentElement === target_container;
-    if (!in_document || !parent_is_target) {
-      try { target_container.appendChild(controls.wrapper_element); } catch {}
+  function mountIfNeeded(){
+    const t = findTarget();
+    if(!t) return;
+    if(controls.wrap.parentElement !== t){
+      try{ t.appendChild(controls.wrap); }catch{}
     }
   }
-  let mount_scheduled = false;
-  function schedule_mount() {
-    if (mount_scheduled) return;
-    mount_scheduled = true;
-    requestAnimationFrame(() => { mount_scheduled = false; mount_controls_if_needed(); });
+  let rafPending = false;
+  function scheduleMount(){
+    if(rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(()=>{ rafPending = false; mountIfNeeded(); });
   }
-  const mutation_observer = new MutationObserver(() => { schedule_mount(); });
-  mutation_observer.observe(document.body, { childList: true, subtree: true });
-  setInterval(mount_controls_if_needed, 1500);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") schedule_mount();
-  });
-  mount_controls_if_needed();
+  const mo = new MutationObserver(()=>{ scheduleMount(); });
+  mo.observe(document.body, { childList:true, subtree:true });
+  setInterval(mountIfNeeded, 1500);
+  document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") scheduleMount(); });
+  mountIfNeeded();
 })();
