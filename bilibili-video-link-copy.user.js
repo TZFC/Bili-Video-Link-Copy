@@ -2,12 +2,8 @@
 // @name                 Bilibili Video MP4 Copy
 // @name:zh-CN           Bilibili 视频直链复制器
 // @namespace            https://github.com/TZFC
-// @version              0.8
-// @description          Copy progressive MP4 URLs from Bilibili with a button and dropdown. Dropdown is readable in system dark mode.
-// @description:zh-CN    在Bilibili播放器中添加按钮和下拉菜单以复制不同清晰度的MP4直链。下拉菜单在系统深色模式下可读。
-// @author               TZFC
-// @downloadURL          https://raw.githubusercontent.com/TZFC/Danmaku-replace/main/bilibili-video-link-copy.user.js
-// @updateURL            https://raw.githubusercontent.com/TZFC/Danmaku-replace/main/bilibili-video-link-copy.user.js
+// @version              1.0
+// @description          Button + dropdown inside #arc_toolbar_report .video-toolbar-right; dark-mode readable; fetches all progressive MP4 qualities.
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
 // @license              GPL-3.0
@@ -25,62 +21,37 @@
     return String(langs[0] || "en").toLowerCase().startsWith("zh") ? "zh-CN" : "en";
   })();
   const L = {
-    "en": {
-      button_idle:"Copy MP4", button_fetching:"Fetching…", button_copied:"Copied ✅", button_error:"Error ❌",
-      button_title:"Copy selected MP4 URL", dropdown_title:"Choose MP4 stream (lowest preselected)",
-      placeholder:"Select stream…", size_unknown:"unknown",
-      label_unknown:"Unknown", error_extract_bvid:"Could not extract BV identifier.",
-      error_bad_json:"Failed to parse JSON.", error_no_mp4:"No MP4 found.",
-      error_no_mp4_candidates:"No MP4 candidates."
-    },
-    "zh-CN": {
-      button_idle:"复制 MP4", button_fetching:"获取中…", button_copied:"已复制 ✅", button_error:"出错 ❌",
-      button_title:"复制所选 MP4 直链", dropdown_title:"选择 MP4 流（默认最低画质）",
-      placeholder:"选择流…", size_unknown:"未知",
-      label_unknown:"未知", error_extract_bvid:"无法提取 BV 号。",
-      error_bad_json:"JSON 解析失败。", error_no_mp4:"未找到 MP4。",
-      error_no_mp4_candidates:"没有可用的 MP4。"
-    }
+    "en": { button_idle:"Copy MP4", button_fetching:"Fetching…", button_copied:"Copied ✅", button_error:"Error ❌",
+            button_title:"Copy selected MP4 URL", dropdown_title:"Choose MP4 stream (lowest preselected)",
+            placeholder:"Select stream…", size_unknown:"unknown", label_unknown:"Unknown",
+            error_extract_bvid:"Could not extract BV identifier.", error_bad_json:"Failed to parse JSON.",
+            error_no_mp4:"No MP4 found.", error_no_mp4_candidates:"No MP4 candidates." },
+    "zh-CN": { button_idle:"复制 MP4", button_fetching:"获取中…", button_copied:"已复制 ✅", button_error:"出错 ❌",
+               button_title:"复制所选 MP4 直链", dropdown_title:"选择 MP4 流（默认最低画质）",
+               placeholder:"选择流…", size_unknown:"未知", label_unknown:"未知",
+               error_extract_bvid:"无法提取 BV 号。", error_bad_json:"JSON 解析失败。",
+               error_no_mp4:"未找到 MP4。", error_no_mp4_candidates:"没有可用的 MP4。" }
   }[locale];
 
   const style = document.createElement("style");
   style.textContent = `
-    .bili_mp4_tools { color-scheme: light dark; }
-
-    .bili_mp4_select {
-      font-size: 12px;
-      min-width: 200px;
-      padding: 4px 8px;
-      appearance: auto; -webkit-appearance: auto; -moz-appearance: auto;
+    #arc_toolbar_report .video-toolbar-right [data-bili-mp4] { display:inline-flex; align-items:center; gap:8px; margin-left:8px; color-scheme: light dark; }
+    #arc_toolbar_report .video-toolbar-right .bili_mp4_select {
+      font-size:12px; min-width:200px; padding:4px 8px; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
     }
-
-    .bili_mp4_select option:disabled { opacity: 0.7; }
-
+    #arc_toolbar_report .video-toolbar-right .bili_mp4_select option:disabled { opacity:0.7; }
     @media (prefers-color-scheme: dark) {
-      .bili_mp4_select {
-        color: #e8e8e8 !important;
-        background-color: #16181b !important;
-        border: 1px solid rgba(255,255,255,0.18) !important;
-        -webkit-text-fill-color: #e8e8e8 !important;
-      }
-      .bili_mp4_select option {
-        color: #e8e8e8 !important;
-        background-color: #16181b !important;
-      }
-      .bili_mp4_select option:disabled {
-        color: rgba(232,232,232,0.7) !important;
-      }
+      #arc_toolbar_report .video-toolbar-right .bili_mp4_select { color:#e8e8e8 !important; background-color:#16181b !important; border:1px solid rgba(255,255,255,0.18) !important; -webkit-text-fill-color:#e8e8e8 !important; }
+      #arc_toolbar_report .video-toolbar-right .bili_mp4_select option { color:#e8e8e8 !important; background-color:#16181b !important; }
+      #arc_toolbar_report .video-toolbar-right .bili_mp4_select option:disabled { color:rgba(232,232,232,0.75) !important; }
     }
-
-    .bili_mp4_button {
-      cursor:pointer; padding:6px 12px; font-size:12px; line-height:1;
-      border:none; border-radius:8px;
-      background: linear-gradient(135deg, #ff7ac3 0%, #7aa8ff 100%);
-      color:#101010; font-weight:700;
+    #arc_toolbar_report .video-toolbar-right .bili_mp4_button {
+      cursor:pointer; padding:6px 12px; font-size:12px; line-height:1; border:none; border-radius:8px;
+      background:linear-gradient(135deg,#ff7ac3 0%,#7aa8ff 100%); color:#101010; font-weight:700;
     }
-    .bili_mp4_button[disabled]{ opacity:.6; cursor:not-allowed; }
+    #arc_toolbar_report .video-toolbar-right .bili_mp4_button[disabled]{ opacity:.6; cursor:not-allowed; }
   `;
-  document.documentElement.appendChild(style);
+  document.head.appendChild(style);
 
   const getBV = () => {
     const m = location.pathname.match(/\/video\/(BV[0-9A-Za-z]+)/);
@@ -94,16 +65,16 @@
   const clip = (t) => GM_setClipboard(t, { type: "text", mimetype: "text/plain" });
   const fmtSize = (bytes) => {
     if (!Number.isFinite(bytes) || bytes <= 0) return L.size_unknown;
-    const units = ["B", "KB", "MB", "GB"]; let i = 0, v = bytes;
-    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
-    return `${v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[i]}`;
+    const units = ["B","KB","MB","GB"]; let i=0, v=bytes;
+    while (v>=1024 && i<units.length-1){ v/=1024; i++; }
+    return `${v.toFixed(v>=100?0:v>=10?1:2)} ${units[i]}`;
   };
   const httpGetJson = (url) => new Promise((res, rej) => {
     GM_xmlhttpRequest({
-      method: "GET", url, headers: { Referer: "https://www.bilibili.com/" }, timeout: 30000,
-      onload: r => { try { res(JSON.parse(r.responseText)); } catch { rej(new Error(L.error_bad_json)); } },
-      onerror: () => rej(new Error("Network error: " + url)),
-      ontimeout: () => rej(new Error("Network timeout: " + url))
+      method:"GET", url, headers:{ Referer:"https://www.bilibili.com/" }, timeout:30000,
+      onload:r=>{ try{ res(JSON.parse(r.responseText)); } catch{ rej(new Error(L.error_bad_json)); } },
+      onerror:()=>rej(new Error("Network error: "+url)),
+      ontimeout:()=>rej(new Error("Network timeout: "+url))
     });
   });
 
@@ -116,7 +87,7 @@
       pagelistCache.set(bvid, Array.isArray(js?.data) ? js.data : []);
     }
     const arr = pagelistCache.get(bvid);
-    const item = arr.find(x => x.page === page) || arr[0];
+    const item = arr.find(x=>x.page===page) || arr[0];
     return item && item.cid;
   };
 
@@ -124,8 +95,8 @@
     const key = `${bvid}:${cid}:qn=${qn}`;
     if (playurlCache.has(key)) return playurlCache.get(key);
     const params = new URLSearchParams({
-      bvid: String(bvid), cid: String(cid), qn: String(qn),
-      fourk: "1", fnver: "0", fnval: "0", otype: "json", platform: "html5"
+      bvid:String(bvid), cid:String(cid), qn:String(qn),
+      fourk:"1", fnver:"0", fnval:"0", otype:"json", platform:"html5"
     });
     const js = await httpGetJson(`https://api.bilibili.com/x/player/playurl?${params.toString()}`);
     playurlCache.set(key, js);
@@ -134,8 +105,8 @@
 
   const getAllMp4Options = async (bvid, cid) => {
     const baseParams = new URLSearchParams({
-      bvid: String(bvid), cid: String(cid), qn: "120",
-      fourk: "1", fnver: "0", fnval: "0", otype: "json", platform: "html5"
+      bvid:String(bvid), cid:String(cid), qn:"120",
+      fourk:"1", fnver:"0", fnval:"0", otype:"json", platform:"html5"
     });
     const first = await httpGetJson(`https://api.bilibili.com/x/player/playurl?${baseParams.toString()}`);
     const support = Array.isArray(first?.data?.support_formats) ? first.data.support_formats : [];
@@ -144,54 +115,54 @@
       ? support.map(s => ({ qn: s.quality, label: s.new_description || s.display_desc || String(s.quality) }))
       : acceptQ.map(qn => ({ qn, label: String(qn) }));
     const seen = new Set();
-    qualities = qualities.filter(q => !seen.has(String(q.qn)) && seen.add(String(q.qn))).sort((a, b) => a.qn - b.qn);
+    qualities = qualities.filter(q=>!seen.has(String(q.qn)) && seen.add(String(q.qn))).sort((a,b)=>a.qn-b.qn);
 
     const results = [];
     for (const q of qualities) {
       try {
         const js = await fetchPlayurlForQn(bvid, cid, q.qn);
         const durl = js?.data?.durl;
-        if (!Array.isArray(durl) || durl.length === 0) continue;
+        if (!Array.isArray(durl) || durl.length===0) continue;
         let picked = null;
         for (const e of durl) {
-          if (e?.url && e.url.toLowerCase().includes(".mp4") && !e.url.toLowerCase().includes(".m4s")) {
-            picked = { url: e.url, size: Number(e.size || 0) }; break;
-          }
+          if (e?.url && e.url.toLowerCase().includes(".mp4") && !e.url.toLowerCase().includes(".m4s")) { picked = { url:e.url, size:Number(e.size||0) }; break; }
           if (Array.isArray(e?.backup_url)) {
             const b = e.backup_url.find(u => u.toLowerCase().includes(".mp4") && !u.toLowerCase().includes(".m4s"));
-            if (b) { picked = { url: b, size: Number(e.size || 0) }; break; }
+            if (b) { picked = { url:b, size:Number(e.size||0) }; break; }
           }
         }
-        if (picked) results.push({ qn: q.qn, label: q.label, url: picked.url, size: picked.size });
+        if (picked) results.push({ qn:q.qn, label:q.label, url:picked.url, size:picked.size });
       } catch {}
     }
 
-    if (results.length === 0) {
+    if (results.length===0) {
       const durl = first?.data?.durl;
       if (Array.isArray(durl)) {
         for (const e of durl) {
           if (e?.url && e.url.toLowerCase().includes(".mp4") && !e.url.toLowerCase().includes(".m4s")) {
-            results.push({ qn: first?.data?.quality ?? 0, label: L.label_unknown, url: e.url, size: Number(e.size || 0) });
+            results.push({ qn:first?.data?.quality ?? 0, label:L.label_unknown, url:e.url, size:Number(e.size||0) });
           }
         }
       }
     }
 
-    const haveSize = results.every(r => Number.isFinite(r.size) && r.size > 0);
-    results.sort((a, b) => haveSize ? (a.size - b.size) : (a.qn - b.qn));
+    const haveSize = results.every(r => Number.isFinite(r.size) && r.size>0);
+    results.sort((a,b)=> haveSize ? (a.size-b.size) : (a.qn-b.qn));
     return results;
   };
 
-  const createControls = () => {
-    const wrap = document.createElement("div"); wrap.className = "bili_mp4_tools";
+  const createControls = ()=>{
+    const wrap = document.createElement("span");
+    wrap.setAttribute("data-bili-mp4","1");
     const sel = document.createElement("select"); sel.className = "bili_mp4_select"; sel.title = L.dropdown_title;
-    const ph = document.createElement("option"); ph.value = ""; ph.disabled = true; ph.selected = true; ph.textContent = L.placeholder; sel.appendChild(ph);
-    const btn = document.createElement("button"); btn.className = "bili_mp4_button"; btn.title = L.button_title; btn.textContent = L.button_idle;
-    wrap.appendChild(sel); wrap.appendChild(btn); return { wrap, sel, btn };
+    const ph = document.createElement("option"); ph.value=""; ph.disabled=true; ph.selected=true; ph.textContent=L.placeholder; sel.appendChild(ph);
+    const btn = document.createElement("button"); btn.className="bili_mp4_button"; btn.title=L.button_title; btn.textContent=L.button_idle;
+    wrap.appendChild(sel); wrap.appendChild(btn);
+    return { wrap, sel, btn };
   };
 
-  const setBtn = (btn, label, dis) => { btn.textContent = label; btn.disabled = !!dis; };
-  const populate = (sel, list) => {
+  const setBtn = (btn, label, dis)=>{ btn.textContent = label; btn.disabled = !!dis; };
+  const populate = (sel, list)=>{
     sel.length = 1;
     for (const it of list) {
       const o = document.createElement("option");
@@ -204,30 +175,63 @@
 
   const controls = createControls();
   let loaded = false;
-  const loadOnce = async () => {
+  const loadOnce = async ()=>{
     if (loaded) return; loaded = true;
     setBtn(controls.btn, L.button_fetching, true);
     try {
       const bvid = getBV(); const page = getPage(); const cid = await getCidForPage(bvid, page);
       const list = await getAllMp4Options(bvid, cid);
-      if (!list || list.length === 0) throw new Error(L.error_no_mp4_candidates);
+      if (!list || list.length===0) throw new Error(L.error_no_mp4_candidates);
       populate(controls.sel, list); setBtn(controls.btn, L.button_idle, false);
     } catch (e) { console.error(e); setBtn(controls.btn, L.button_error, true); }
   };
-  controls.sel.addEventListener("mousedown", loadOnce, { passive: true });
-  controls.btn.addEventListener("mousedown", loadOnce, { passive: true });
-  controls.btn.addEventListener("click", async () => {
+  controls.sel.addEventListener("mousedown", loadOnce, { passive:true });
+  controls.btn.addEventListener("mousedown", loadOnce, { passive:true });
+  controls.btn.addEventListener("click", async ()=>{
     if (!loaded) await loadOnce();
-    if (!controls.sel.value) { setBtn(controls.btn, L.button_error, true); setTimeout(() => setBtn(controls.btn, L.button_idle, false), 1200); return; }
+    if (!controls.sel.value) { setBtn(controls.btn, L.button_error, true); setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200); return; }
     try { clip(controls.sel.value); setBtn(controls.btn, L.button_copied, true); }
-    catch (e) { console.error(e); setBtn(controls.btn, L.button_error, true); }
-    setTimeout(() => setBtn(controls.btn, L.button_idle, false), 1200);
-  }, { passive: true });
+    catch(e){ console.error(e); setBtn(controls.btn, L.button_error, true); }
+    setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
+  }, { passive:true });
 
-  function findTarget() { return document.querySelector("#bilibili-player .bpx-player-primary-area .bpx-player-sending-area"); }
-  function mountIfNeeded() { const t = findTarget(); if (t && controls.wrap.parentElement !== t) { try { t.appendChild(controls.wrap); } catch {} } }
-  let rafPending = false; function scheduleMount() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; mountIfNeeded(); }); }
-  const mo = new MutationObserver(() => { scheduleMount(); }); mo.observe(document.body, { childList: true, subtree: true });
-  setInterval(mountIfNeeded, 1500); document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") scheduleMount(); });
-  mountIfNeeded();
+  const getToolbarRight = () => document.querySelector("#arc_toolbar_report .video-toolbar-right");
+  const getArcContainer = () => document.getElementById("arc_toolbar_report");
+
+  let rafQueued = false, mounting = false, mo = null;
+
+  const mount = () => {
+    if (mounting) return;
+    mounting = true;
+    try {
+      const t = getToolbarRight();
+      if (!t) return;
+      if (controls.wrap.parentElement !== t) {
+        t.appendChild(controls.wrap);
+      }
+    } finally {
+      mounting = false;
+    }
+  };
+
+  const scheduleMount = () => {
+    if (rafQueued) return;
+    rafQueued = true;
+    requestAnimationFrame(() => {
+      rafQueued = false;
+      mount();
+    });
+  };
+
+  const ensureObserver = () => {
+    if (mo) return;
+    const arc = getArcContainer();
+    if (!arc) return;
+    mo = new MutationObserver(() => { scheduleMount(); });
+    mo.observe(arc, { childList:true, subtree:true });
+  };
+
+  scheduleMount();
+  ensureObserver();
+  window.addEventListener("popstate", scheduleMount);
 })();
