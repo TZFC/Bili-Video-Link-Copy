@@ -4,6 +4,7 @@
 // @namespace            https://github.com/TZFC
 // @version              1.0
 // @description          Button + dropdown inside #arc_toolbar_report .video-toolbar-right; dark-mode readable; fetches all progressive MP4 qualities.
+// @description:zh-CN    在哔哩哔哩视频工具栏中添加带清晰度选择的复制 MP4 按钮，支持深色模式。
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
 // @license              GPL-3.0
