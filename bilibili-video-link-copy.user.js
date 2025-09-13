@@ -36,7 +36,7 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    #bili_mp4_container { position:fixed; top:80px; right:16px; display:inline-flex; align-items:center; gap:8px; margin-left:8px; color-scheme: light dark; z-index:9999; }
+    #bili_mp4_container { position:fixed; top:80px; left:50%; transform:translateX(-50%); display:inline-flex; align-items:center; gap:8px; color-scheme: light dark; z-index:9999; }
     #bili_mp4_container .bili_mp4_select {
       font-size:12px; min-width:200px; padding:4px 8px; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
     }
