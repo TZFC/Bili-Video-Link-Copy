@@ -12,6 +12,8 @@
 // @grant                GM_setClipboard
 // @grant                GM_xmlhttpRequest
 // @connect              api.bilibili.com
+// @downloadURL          https://github.com/TZFC/Bili-Video-Link-Copy/raw/refs/heads/main/bilibili-video-link-copy.user.js
+// @updateURL            https://github.com/TZFC/Bili-Video-Link-Copy/raw/refs/heads/main/bilibili-video-link-copy.user.js
 // ==/UserScript==
 
 (function () {
