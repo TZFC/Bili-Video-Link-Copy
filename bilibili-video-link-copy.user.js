@@ -2,7 +2,7 @@
 // @name                 Bilibili Video MP4 Copy
 // @name:zh-CN           Bilibili 视频直链复制器
 // @namespace            https://github.com/TZFC
-// @version              1.0
+// @version              1.1
 // @description          Floating button + dropdown near toolbar; dark-mode readable; fetches all progressive MP4 qualities.
 // @description:zh-CN    在哔哩哔哩视频工具栏附近添加带清晰度选择的悬浮复制 MP4 按钮，支持深色模式。
 // @match                *://www.bilibili.com/video/*
