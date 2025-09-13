@@ -1,5 +1,5 @@
 ## Bili-Video-Link-Copy
-Adds a floating button with a quality dropdown that copies a direct MP4 link of the current Bilibili video to the clipboard.
+Adds an MP4 copy button with a quality dropdown into Bilibili's video toolbar, copying the direct MP4 link of the current video to the clipboard.
 
 TamperMonkey browser extension: https://www.tampermonkey.net/
 

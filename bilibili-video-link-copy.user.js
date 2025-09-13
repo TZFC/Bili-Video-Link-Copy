@@ -3,8 +3,8 @@
 // @name:zh-CN           Bilibili 视频直链复制器
 // @namespace            https://github.com/TZFC
 // @version              1.0
-// @description          Floating button + dropdown that copies direct MP4 links; dark-mode readable; fetches all progressive MP4 qualities.
-// @description:zh-CN    浮动的带清晰度选择的复制 MP4 按钮，支持深色模式。
+// @description          Adds MP4 copy button with quality dropdown to video toolbar; dark-mode readable; fetches all progressive MP4 qualities.
+// @description:zh-CN    在工具栏中添加带清晰度选择的 MP4 复制按钮，支持深色模式。
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
 // @license              GPL-3.0
@@ -36,7 +36,7 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    [data-bili-mp4] { position:fixed; top:80px; right:20px; display:flex; align-items:center; gap:8px; color-scheme: light dark; z-index:99999; }
+    [data-bili-mp4] { display:flex; align-items:center; gap:8px; color-scheme: light dark; }
     [data-bili-mp4] .bili_mp4_select {
       font-size:12px; min-width:200px; padding:4px 8px; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
     }
@@ -153,8 +153,9 @@
   };
 
   const createControls = ()=>{
-    const wrap = document.createElement("span");
+    const wrap = document.createElement("div");
     wrap.setAttribute("data-bili-mp4","1");
+    wrap.className = "video-toolbar-right-item";
     const sel = document.createElement("select"); sel.className = "bili_mp4_select"; sel.title = L.dropdown_title;
     const ph = document.createElement("option"); ph.value=""; ph.disabled=true; ph.selected=true; ph.textContent=L.placeholder; sel.appendChild(ph);
     const btn = document.createElement("button"); btn.className="bili_mp4_button"; btn.title=L.button_title; btn.textContent=L.button_idle;
@@ -196,5 +197,14 @@
     setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
   }, { passive:true });
 
-  document.body.appendChild(controls.wrap);
+  const inject = () => {
+    const bar = document.querySelector(".video-toolbar-right");
+    if (!bar) return false;
+    bar.insertBefore(controls.wrap, bar.firstChild);
+    return true;
+  };
+  if (!inject()) {
+    const mo = new MutationObserver(() => { if (inject()) mo.disconnect(); });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
 })();
