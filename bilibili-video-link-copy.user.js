@@ -2,9 +2,9 @@
 // @name                 Bilibili Video MP4 Copy
 // @name:zh-CN           Bilibili 视频直链复制器
 // @namespace            https://github.com/TZFC
-// @version              1.0
-// @description          Button + dropdown inside #arc_toolbar_report .video-toolbar-right; dark-mode readable; fetches all progressive MP4 qualities.
-// @description:zh-CN    在哔哩哔哩视频工具栏中添加带清晰度选择的复制 MP4 按钮，支持深色模式。
+// @version              1.1
+// @description          Floating button + dropdown near toolbar; dark-mode readable; fetches all progressive MP4 qualities.
+// @description:zh-CN    在哔哩哔哩视频工具栏附近添加带清晰度选择的悬浮复制 MP4 按钮，支持深色模式。
 // @match                *://www.bilibili.com/video/*
 // @icon                 https://www.bilibili.com/favicon.ico
 // @license              GPL-3.0
@@ -36,21 +36,21 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    #arc_toolbar_report .video-toolbar-right [data-bili-mp4] { display:inline-flex; align-items:center; gap:8px; margin-left:8px; color-scheme: light dark; }
-    #arc_toolbar_report .video-toolbar-right .bili_mp4_select {
+    #bili_mp4_container { position:fixed; top:80px; left:50%; transform:translateX(-50%); display:inline-flex; align-items:center; gap:8px; color-scheme: light dark; z-index:9999; }
+    #bili_mp4_container .bili_mp4_select {
       font-size:12px; min-width:200px; padding:4px 8px; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
     }
-    #arc_toolbar_report .video-toolbar-right .bili_mp4_select option:disabled { opacity:0.7; }
+    #bili_mp4_container .bili_mp4_select option:disabled { opacity:0.7; }
     @media (prefers-color-scheme: dark) {
-      #arc_toolbar_report .video-toolbar-right .bili_mp4_select { color:#e8e8e8 !important; background-color:#16181b !important; border:1px solid rgba(255,255,255,0.18) !important; -webkit-text-fill-color:#e8e8e8 !important; }
-      #arc_toolbar_report .video-toolbar-right .bili_mp4_select option { color:#e8e8e8 !important; background-color:#16181b !important; }
-      #arc_toolbar_report .video-toolbar-right .bili_mp4_select option:disabled { color:rgba(232,232,232,0.75) !important; }
+      #bili_mp4_container .bili_mp4_select { color:#e8e8e8 !important; background-color:#16181b !important; border:1px solid rgba(255,255,255,0.18) !important; -webkit-text-fill-color:#e8e8e8 !important; }
+      #bili_mp4_container .bili_mp4_select option { color:#e8e8e8 !important; background-color:#16181b !important; }
+      #bili_mp4_container .bili_mp4_select option:disabled { color:rgba(232,232,232,0.75) !important; }
     }
-    #arc_toolbar_report .video-toolbar-right .bili_mp4_button {
+    #bili_mp4_container .bili_mp4_button {
       cursor:pointer; padding:6px 12px; font-size:12px; line-height:1; border:none; border-radius:8px;
       background:linear-gradient(135deg,#ff7ac3 0%,#7aa8ff 100%); color:#101010; font-weight:700;
     }
-    #arc_toolbar_report .video-toolbar-right .bili_mp4_button[disabled]{ opacity:.6; cursor:not-allowed; }
+    #bili_mp4_container .bili_mp4_button[disabled]{ opacity:.6; cursor:not-allowed; }
   `;
   document.head.appendChild(style);
 
@@ -153,7 +153,8 @@
   };
 
   const createControls = ()=>{
-    const wrap = document.createElement("span");
+    const wrap = document.createElement("div");
+    wrap.id = "bili_mp4_container";
     wrap.setAttribute("data-bili-mp4","1");
     const sel = document.createElement("select"); sel.className = "bili_mp4_select"; sel.title = L.dropdown_title;
     const ph = document.createElement("option"); ph.value=""; ph.disabled=true; ph.selected=true; ph.textContent=L.placeholder; sel.appendChild(ph);
@@ -196,43 +197,14 @@
     setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
   }, { passive:true });
 
-  const getToolbarRight = () => document.querySelector("#arc_toolbar_report .video-toolbar-right");
-  const getArcContainer = () => document.getElementById("arc_toolbar_report");
-
-  let rafQueued = false, mounting = false, mo = null;
-
   const mount = () => {
-    if (mounting) return;
-    mounting = true;
-    try {
-      const t = getToolbarRight();
-      if (!t) return;
-      if (controls.wrap.parentElement !== t) {
-        t.appendChild(controls.wrap);
-      }
-    } finally {
-      mounting = false;
+    if (!document.body.contains(controls.wrap)) {
+      document.body.appendChild(controls.wrap);
     }
   };
+  const mo = new MutationObserver(() => { mount(); });
+  mo.observe(document.body, { childList:true });
 
-  const scheduleMount = () => {
-    if (rafQueued) return;
-    rafQueued = true;
-    requestAnimationFrame(() => {
-      rafQueued = false;
-      mount();
-    });
-  };
-
-  const ensureObserver = () => {
-    if (mo) return;
-    const arc = getArcContainer();
-    if (!arc) return;
-    mo = new MutationObserver(() => { scheduleMount(); });
-    mo.observe(arc, { childList:true, subtree:true });
-  };
-
-  scheduleMount();
-  ensureObserver();
-  window.addEventListener("popstate", scheduleMount);
+  mount();
+  window.addEventListener("popstate", mount);
 })();
