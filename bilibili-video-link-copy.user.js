@@ -36,7 +36,7 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    [data-bili-mp4] { display:flex; align-items:center; gap:8px; color-scheme: light dark; }
+    [data-bili-mp4] { display:flex; align-items:center; gap:8px; color-scheme: light dark; position:absolute; top:0; right:0; }
     [data-bili-mp4] .bili_mp4_select {
       font-size:12px; min-width:200px; padding:4px 8px; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
     }
@@ -155,7 +155,6 @@
   const createControls = ()=>{
     const wrap = document.createElement("div");
     wrap.setAttribute("data-bili-mp4","1");
-    wrap.className = "video-toolbar-right-item";
     const sel = document.createElement("select"); sel.className = "bili_mp4_select"; sel.title = L.dropdown_title;
     const ph = document.createElement("option"); ph.value=""; ph.disabled=true; ph.selected=true; ph.textContent=L.placeholder; sel.appendChild(ph);
     const btn = document.createElement("button"); btn.className="bili_mp4_button"; btn.title=L.button_title; btn.textContent=L.button_idle;
@@ -198,9 +197,11 @@
   }, { passive:true });
 
   const inject = () => {
-    const bar = document.querySelector(".video-toolbar-right");
-    if (!bar) return false;
-    bar.insertBefore(controls.wrap, bar.firstChild);
+    const box = document.getElementById("viewbox_report");
+    if (!box) return false;
+    const cs = window.getComputedStyle(box);
+    if (cs.position === "static") box.style.position = "relative";
+    box.appendChild(controls.wrap);
     return true;
   };
   if (!inject()) {
