@@ -2,7 +2,7 @@
 // @name                 Bilibili Video MP4 Copy
 // @name:zh-CN           Bilibili 视频直链复制器
 // @namespace            https://github.com/TZFC
-// @version              1.1
+// @version              1.2
 // @description          Floating button + dropdown near toolbar; dark-mode readable; fetches all progressive MP4 qualities.
 // @description:zh-CN    在哔哩哔哩视频工具栏附近添加带清晰度选择的悬浮复制 MP4 按钮，支持深色模式。
 // @match                *://www.bilibili.com/video/*
@@ -15,6 +15,7 @@
 // @downloadURL          https://github.com/TZFC/Bili-Video-Link-Copy/raw/refs/heads/main/bilibili-video-link-copy.user.js
 // @updateURL            https://github.com/TZFC/Bili-Video-Link-Copy/raw/refs/heads/main/bilibili-video-link-copy.user.js
 // ==/UserScript==
+
 
 (function () {
   "use strict";
@@ -38,7 +39,15 @@
 
   const style = document.createElement("style");
   style.textContent = `
-    #bili_mp4_container { position:fixed; top:80px; left:50%; transform:translateX(-50%); display:inline-flex; align-items:center; gap:8px; color-scheme: light dark; z-index:9999; }
+    #bili_mp4_container {
+      position:absolute;
+      top:8px;
+      right:8px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      z-index:9999;
+    }
     #bili_mp4_container .bili_mp4_select {
       font-size:12px; min-width:200px; padding:4px 8px; appearance:auto; -webkit-appearance:auto; -moz-appearance:auto;
     }
@@ -199,14 +208,13 @@
     setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
   }, { passive:true });
 
-  const mount = () => {
-    if (!document.body.contains(controls.wrap)) {
-      document.body.appendChild(controls.wrap);
+  // place controls into top-right of .left-container.scroll-sticky
+  window.addEventListener("load", () => {
+    const target = document.querySelector(".left-container.scroll-sticky");
+    if (target && !target.contains(controls.wrap)) {
+      target.style.position = "relative"; // ensure positioning context
+      target.appendChild(controls.wrap);
     }
-  };
-  const mo = new MutationObserver(() => { mount(); });
-  mo.observe(document.body, { childList:true });
-
-  mount();
-  window.addEventListener("popstate", mount);
+  });
 })();
+
