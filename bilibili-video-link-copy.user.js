@@ -2,7 +2,7 @@
 // @name                 Bilibili Video MP4 Copy
 // @name:zh-CN           Bilibili 视频直链复制器
 // @namespace            https://github.com/TZFC
-// @version              1.2
+// @version              1.3
 // @description          Floating button + dropdown near toolbar; dark-mode readable; fetches all progressive MP4 qualities.
 // @description:zh-CN    在哔哩哔哩视频工具栏附近添加带清晰度选择的悬浮复制 MP4 按钮，支持深色模式。
 // @match                *://www.bilibili.com/video/*
@@ -208,13 +208,58 @@
     setTimeout(()=>setBtn(controls.btn, L.button_idle, false), 1200);
   }, { passive:true });
 
-  // place controls into top-right of .left-container.scroll-sticky
-  window.addEventListener("load", () => {
-    const target = document.querySelector(".left-container.scroll-sticky");
-    if (target && !target.contains(controls.wrap)) {
-      target.style.position = "relative"; // ensure positioning context
-      target.appendChild(controls.wrap);
+  function attach_controls_into_left_container_once() {
+  const target = document.querySelector(".left-container.scroll-sticky");
+  if (!target) {
+    console.debug("VC: left container not found (yet)");
+    return false;
+  }
+  if (!target.contains(controls.wrap)) {
+    target.style.position = "relative"; // ensure positioning context
+    target.appendChild(controls.wrap);
+    console.debug("VC: left container attached");
+  }
+  return true;
+}
+
+// Try immediately (in case it already exists)
+attach_controls_into_left_container_once();
+
+// Observe DOM for when Vue mounts/replaces the container
+const vcObserver = new MutationObserver(() => {
+  if (attach_controls_into_left_container_once()) {
+    vcObserver.disconnect();
+  }
+});
+vcObserver.observe(document.body, { childList: true, subtree: true });
+
+// Re-try on SPA navigations (Bilibili uses History API)
+const hookHistory = (method) => {
+  const orig = history[method];
+  history[method] = function () {
+    const ret = orig.apply(this, arguments);
+    // defer to next tick so DOM can render
+    setTimeout(() => {
+      // keep observing until attached; re-enable observer if needed
+      if (vcObserver.takeRecords(), !attach_controls_into_left_container_once()) {
+        // if not found yet, ensure observer is active
+        try { vcObserver.observe(document.body, { childList: true, subtree: true }); } catch {}
+      }
+    }, 0);
+    return ret;
+  };
+};
+hookHistory("pushState");
+hookHistory("replaceState");
+
+// Also handle back/forward
+window.addEventListener("popstate", () => {
+  setTimeout(() => {
+    if (!attach_controls_into_left_container_once()) {
+      try { vcObserver.observe(document.body, { childList: true, subtree: true }); } catch {}
     }
-  });
+  }, 0);
+});
+
 })();
 
