@@ -115,7 +115,8 @@
     return js;
   };
 
-  const getAllMp4Options = async (bvid, cid) => {
+ const getAllMp4Options = async (bvid, cid) => {
+    // 1. Fetch progressive video MP4s
     const baseParams = new URLSearchParams({
       bvid:String(bvid), cid:String(cid), qn:"120",
       fourk:"1", fnver:"0", fnval:"0", otype:"json", platform:"html5"
@@ -158,8 +159,51 @@
       }
     }
 
+    // 2. NEW: Fetch DASH Audio streams
+    try {
+      const dashParams = new URLSearchParams({
+        bvid: String(bvid), cid: String(cid), qn: "80", 
+        fourk: "1", fnver: "0", fnval: "16", otype: "json", 
+        platform: "pc" // FIX: 'pc' prevents the API from forcing progressive MP4s
+      });
+      const dashJs = await httpGetJson(`https://api.bilibili.com/x/player/playurl?${dashParams.toString()}`);
+      
+      if (dashJs?.data?.dash?.audio) {
+        const audioMap = {
+          30216: "Audio 🎵 (64kbps)",
+          30232: "Audio 🎵 (132kbps)",
+          30280: "Audio 🎵 (192kbps)",
+          30250: "Audio 🎵 (Dolby Atmos)",
+          30251: "Audio 🎵 (Hi-Res)"
+        };
+
+        const seenAudio = new Set();
+        for (const a of dashJs.data.dash.audio) {
+          if (seenAudio.has(a.id)) continue;
+          seenAudio.add(a.id);
+
+          // Added backup_url checks just in case base_url is omitted
+          const url = a.baseUrl || a.base_url || (a.backupUrl && a.backupUrl[0]) || (a.backup_url && a.backup_url[0]);
+          if (url) {
+            results.push({ 
+              qn: a.id, 
+              label: audioMap[a.id] || `Audio 🎵 (ID: ${a.id})`, 
+              url: url, 
+              size: 0 
+            });
+          }
+        }
+      } else {
+        console.warn("DASH audio payload missing. Bilibili returned:", dashJs);
+      }
+    } catch (e) {
+      console.warn("Could not fetch audio options", e);
+    }
+
+    // 3. Sort and return
     const haveSize = results.every(r => Number.isFinite(r.size) && r.size>0);
     results.sort((a,b)=> haveSize ? (a.size-b.size) : (a.qn-b.qn));
+    
     return results;
   };
 
